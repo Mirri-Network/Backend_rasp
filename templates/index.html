@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko" style="background-color: black; color: white; font-family: 'Pretendard Light', sans-serif">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>미리</title>
+		<style>
+			@font-face {
+				font-family: 'Pretendard';
+				font-weight: 900;
+				font-display: swap;
+				src: local('Pretendard Black'), url(./woff2/Pretendard-Black.woff2) format('woff2'),
+					url(./woff/Pretendard-Black.woff) format('woff');
+			}
+
+			@font-face {
+				font-family: 'Pretendard';
+				font-weight: 800;
+				font-display: swap;
+				src: local('Pretendard ExtraBold'), url(./woff2/Pretendard-ExtraBold.woff2) format('woff2'),
+					url(./woff/Pretendard-ExtraBold.woff) format('woff');
+			}
+
+			@font-face {
+				font-family: 'Pretendard';
+				font-weight: 700;
+				font-display: swap;
+				src: local('Pretendard Bold'), url(./woff2/Pretendard-Bold.woff2) format('woff2'), url(./woff/Pretendard-Bold.woff) format('woff');
+			}
+
+			@font-face {
+				font-family: 'Pretendard';
+				font-weight: 600;
+				font-display: swap;
+				src: local('Pretendard SemiBold'), url(./woff2/Pretendard-SemiBold.woff2) format('woff2'),
+					url(./woff/Pretendard-SemiBold.woff) format('woff');
+			}
+
+			@font-face {
+				font-family: 'Pretendard';
+				font-weight: 500;
+				font-display: swap;
+				src: local('Pretendard Medium'), url(./woff2/Pretendard-Medium.woff2) format('woff2'),
+					url(./woff/Pretendard-Medium.woff) format('woff');
+			}
+
+			@font-face {
+				font-family: 'Pretendard';
+				font-weight: 400;
+				font-display: swap;
+				src: local('Pretendard Regular'), url(./woff2/Pretendard-Regular.woff2) format('woff2'),
+					url(./woff/Pretendard-Regular.woff) format('woff');
+			}
+
+			@font-face {
+				font-family: 'Pretendard';
+				font-weight: 300;
+				font-display: swap;
+				src: local('Pretendard Light'), url(./woff2/Pretendard-Light.woff2) format('woff2'),
+					url(./woff/Pretendard-Light.woff) format('woff');
+			}
+
+			@font-face {
+				font-family: 'Pretendard';
+				font-weight: 200;
+				font-display: swap;
+				src: local('Pretendard ExtraLight'), url(./woff2/Pretendard-ExtraLight.woff2) format('woff2'),
+					url(./woff/Pretendard-ExtraLight.woff) format('woff');
+			}
+
+			@font-face {
+				font-family: 'Pretendard';
+				font-weight: 100;
+				font-display: swap;
+				src: local('Pretendard Thin'), url(./woff2/Pretendard-Thin.woff2) format('woff2'), url(./woff/Pretendard-Thin.woff) format('woff');
+			}
+		</style>
+	</head>
+	<body id="elements">
+		<div style="display: flex; justify-content: space-between; height: 280px">
+			<div>
+				<div id="time" style="font-size: 50px"></div>
+				<div id="date" style="font-size: 21px"></div>
+			</div>
+			<div>
+				<div id="current-weather"></div>
+				<div id="weather-container" style="width: 220px; display: flex; flex-direction: column; gap: 4px"></div>
+			</div>
+		</div>
+		<div style="display: flex; flex-direction: column; gap: 12px">
+			<div id="user-name" style="font-size: 24px"></div>
+			<div id="border"></div>
+			<div id="tasks" style="font-size: 21px; display: flex; flex-direction: column; gap: 8px"></div>
+		</div>
+		<script>
+			let hideTimeout = null;
+			const faceDetectEventSource = new EventSource('/face/detect');
+			faceDetectEventSource.onmessage = function (event) {
+				const faceDetected = event.data === 'true';
+				console.log('Received faceDetected status:', faceDetected);
+				if (faceDetected) {
+					// 사람이 감지되면 화면 즉시 켜기
+					document.getElementById('elements').style.display = 'block';
+					if (hideTimeout) clearTimeout(hideTimeout); // 이전 타이머가 있으면 취소
+				} else {
+					// 사람이 감지되지 않으면 5초 후에 화면 끄기
+					hideTimeout = setTimeout(() => {
+						document.getElementById('elements').style.display = 'none';
+					}, 5000);
+				}
+			};
+			faceDetectEventSource.onerror = function () {
+				console.log('face_detect SSE 연결 오류 발생');
+				faceDetectEventSource.close();
+			};
+		</script>
+
+		<script>
+			const weatherEventSource = new EventSource('/weather');
+			const weatherHTML = document.getElementById('weather-container');
+			weatherEventSource.onmessage = function (event) {
+				console.log(event.data);
+				const weatherData = JSON.parse(event.data);
+				document.getElementById('current-weather').innerText = `${weatherData.current_weather.temp.toFixed(1)}°C, ${
+					weatherData.current_weather.weather
+				}`;
+				document.getElementById('current-weather').innerHTML = `<div style="display: flex; justify-content: space-between;">
+					<img src="{{ url_for('static', path='images/${weatherData.current_weather.weather}.png') }}" alt="${
+					weatherData.current_weather.weather
+				}" style="width: 50px; height: 50px;">
+					<div style="font-size: 50px;">${weatherData.current_weather.temp.toFixed(1)}°C</div>
+				</div>`;
+				weatherHTML.innerHTML = '';
+				weatherData.daily_summary.forEach((weather, i) => {
+					const date = new Date(weather.date);
+					const day = date.toLocaleDateString('en-US', { weekday: 'short' });
+					const formattedDay = date.getDate() === new Date().getDate() ? 'Today' : day;
+					weatherHTML.insertAdjacentHTML(
+						'beforeend',
+						`<div style="display: flex; justify-content: space-between;">
+								<div style="width: 40px;">${formattedDay}</div>
+								<div style="display: flex; width: 150px; justify-content: space-between;">
+									<img src="{{ url_for('static', path='images/${weather.weather_condition}.png') }}" alt="${
+							weather.weather_condition
+						}" style="width: 24px; height: 24px;">
+								<div style="width: 40px;">${weather.max_temp.toFixed(1)}°C</div>
+								<div style="width: 40px;">${weather.min_temp.toFixed(1)}°C</div>
+								</div>
+							</div>`,
+					);
+				});
+				weatherEventSource.onerror = function () {
+					console.log('weather SSE 연결 오류 발생');
+					weatherEventSource.close();
+				};
+			};
+		</script>
+
+		<script>
+			const tasksEventSource = new EventSource('/tasks');
+			const tasksHTML = document.getElementById('tasks');
+			const userName = document.getElementById('user-name');
+			const border = document.getElementById('border');
+			tasksEventSource.onmessage = function (event) {
+				console.log(event.data);
+				const data = JSON.parse(event.data);
+				const tasks = data.tasks;
+				const name = data.user_name;
+				console.log(tasks);
+				console.log(name);
+				tasksHTML.innerHTML = '';
+				userName.innerText = name ? `${name}님 안녕하세요!` : '';
+				border.style.borderBottom = name ? '1px solid white' : 'none';
+				border.style.width = name ? '210px' : '0';
+				tasks.forEach((task, i) => {
+					tasksHTML.insertAdjacentHTML('beforeend', `<div>${task.task}</div>`);
+				});
+			};
+			tasksEventSource.onerror = function () {
+				console.log('tasks SSE 연결 오류 발생');
+				tasksEventSource.close();
+			};
+		</script>
+		<script>
+			function updateDateTime() {
+				const now = new Date();
+				const hours = now.getHours();
+				const minutes = now.getMinutes();
+				const ampm = hours >= 12 ? '오후' : '오전';
+				const formattedHours = hours % 12 || 12;
+				const formattedMinutes = minutes < 10 ? '0' + minutes : minutes;
+				const timeString = `${ampm} ${formattedHours}:${formattedMinutes}`;
+				const dateString = now.toLocaleDateString('ko-KR', {
+					year: 'numeric',
+					month: 'long',
+					day: 'numeric',
+					weekday: 'short',
+				});
+				document.getElementById('time').innerText = `${timeString}`;
+				document.getElementById('date').innerText = `${dateString.replace(/\s([가-힣])$/, ' ($1)')}`;
+			}
+
+			// 1초마다 현재 시간과 날짜를 업데이트
+			setInterval(updateDateTime, 1000);
+			// 페이지 로드 시 즉시 업데이트
+			updateDateTime();
+		</script>
+	</body>
+</html>
